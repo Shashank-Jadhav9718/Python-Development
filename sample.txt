@@ -1,0 +1,3 @@
+Hello team, please contact john.doe@example.com for the latest reports. 
+If John is unavailable, you can also reach out to support_team@company.net.
+Do not reply to noreply@spam.org. Have a great day!
