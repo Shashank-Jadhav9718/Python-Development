@@ -1,29 +1,48 @@
-
-from fastapi import FastAPI 
+from fastapi import FastAPI , HTTPException
 from pydantic import BaseModel 
 
-class CreateUser(BaseModel):
-    username : str 
-    email : str
-    password : str 
+class Item(BaseModel):
+    name : str 
+    price : float
 
 app = FastAPI()
 
+db = {}
+
 @app.get("/")
-def read_root():
-    return {"message": "Welcome to my FastAPI server!"}
+def root():
+    return {"message": "Hello World"}
 
-@app.get("/users/{user_id}")
-def get_user(user_id: int):
-    return {"User_Id": user_id}
+@app.post('/items/{item_id}')
+def create_item(item_id : int , item : Item):
+    if item_id in db:
+        raise HTTPException(status_code = 404 , detail = "Item already Exists")
+    
+    db[item_id] = item
+    return {f"Item {item.name} Created Successfully "}
 
-@app.get("/search")
-def search_items(query : str = None , limit : int = 10):
-    return {"Query" : query , "limit" : limit}
 
-@app.post("/register")
-def register_user(new_user : CreateUser):
-    return {"message" : f"User {new_user.username} registered successfully!"}
-    return {"username" : new_user.username , "email" : new_user.email}
-    return {"password" : new_user.password}
+@app.get("/item/{item_id}")
+def get_item(item_id : int):
+    if item_id not in db:
+        raise  HTTPException(status_code = 404 , detail = "Item Not Found" )
+    
+    return db[item_id]
+
+@app.put("/item/{item_id}")
+def update_item(item_id : int , item : Item):
+    if item_id not in db:
+        raise HTTPException(status_code = 404 , detail = "Item Not Found" )
+    
+    db[item_id] = item
+    return {f"Item {item.name} Updated Successfully "}
+
+@app.delete("/item/{item_id}")
+def delete_item(item_id : int):
+    if item_id not in db:
+        raise HTTPException(status_code = 404 , detail = "Item Not Found" )
+    
+    name = db[item_id].name
+    del db[item_id]
+    return {f"Item {name} Deleted Successfully "}
 
