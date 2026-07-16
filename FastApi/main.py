@@ -17,6 +17,15 @@ class UserCrate(BaseModel):
     username : str
     email : str
     
+class UserResponse(BaseModel):
+    id : int
+    username : str
+    email : str
+    
+    class config:
+        from_attributes = True
+    
+    
 app = FastAPI()
 
 def get_db():
@@ -46,3 +55,18 @@ def create_user(user : UserCrate , db : Session = Depends(get_db)):
             "email": new_user.email
         }
     }
+    
+@app.get('/Users',response_model=list[UserResponse])
+def get_all_users(db : Session = Depends(get_db)):
+    users = db.query(DBUser).all()
+    
+    return users 
+
+@app.get('/Users/{user_id}',response_model=UserResponse)
+def get_specific_user(user_id : int , db : Session = Depends(get_db)):
+    user = db.query(DBUser).filter(user_id == DBUser.id).first()
+    
+    if not user:
+        raise HTTPException(status_code=404 , detail="User Not Found")
+    
+    return user
