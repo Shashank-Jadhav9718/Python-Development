@@ -1,4 +1,4 @@
-from fastapi import FastAPI , Depends , HTTPException
+from fastapi import FastAPI , Depends , HTTPException , status
 from pydantic import BaseModel
 from sqlalchemy import Column , Integer , String
 from sqlalchemy.orm import Session
@@ -22,7 +22,7 @@ class UserResponse(BaseModel):
     username : str
     email : str
     
-    class config:
+    class Config:
         from_attributes = True
     
     
@@ -70,3 +70,35 @@ def get_specific_user(user_id : int , db : Session = Depends(get_db)):
         raise HTTPException(status_code=404 , detail="User Not Found")
     
     return user
+
+@app.put('/Users/{user_id}',response_model=UserResponse)
+def update_user(user_id : int, updated_user : UserCrate, db : Session = Depends(get_db)):
+    user_query = db.query(DBUser).filter(DBUser.id == user_id )
+    user = user_query.first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User Not Found")
+    
+    user_query.update(updated_user.model_dump() , synchronize_session=False)
+    db.commit()
+    
+    updated = user_query.first()
+    
+    return updated
+
+@app.delete('/Users/{user_id}',status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(user_id : int , db : Session = Depends(get_db)):
+    user_query = db.query(DBUser).filter(DBUser.id == user_id)
+    if not user_query.first():
+        raise HTTPException(status_code=404 , detail="User Not Found")
+    
+    user_query.delete(synchronize_session=False)
+    db.commit()
+    
+    
+@app.delete('/Users')
+def delete_all_user(db : Session = Depends(get_db)):
+    users = db.query(DBUser).delete(synchronize_session=False)
+    db.commit()
+    
+    return {"message": f"Nuclear option executed. {users} users deleted."}
