@@ -1,7 +1,7 @@
 from fastapi import FastAPI , Depends , HTTPException , status
 from pydantic import BaseModel
-from sqlalchemy import Column , Integer , String
-from sqlalchemy.orm import Session
+from sqlalchemy import Column , Integer , String , ForeignKey
+from sqlalchemy.orm import Session , relationship
 from database import engine, SessionLocal, Base
 
 class DBUser(Base):
@@ -11,21 +11,51 @@ class DBUser(Base):
     username = Column(String, unique=True)
     email = Column(String)
     
+    posts = relationship("DBPost" , back_populates="owner")
+
+class DBPost(Base):
+    __tablename__ = "posts"
+    
+    id = Column(Integer , primary_key=True ,index=True)
+    title = Column(String)
+    content = Column(String)
+    
+    owner_id = Column(Integer , ForeignKey("users.id"))
+    
+    owner = relationship("DBUser" , back_populates="posts")
+    
 Base.metadata.create_all(bind=engine)
 
 class UserCrate(BaseModel):
     username : str
     email : str
     
+    
+class PostCreate(BaseModel):
+    title : str
+    content : str
+class PostResponse(BaseModel):
+    id : int 
+    title : str
+    content : str
+    owner_id : int
+    
+    class Config:
+        from_attributes = True  
 class UserResponse(BaseModel):
     id : int
     username : str
     email : str
-    
+    posts : list[PostResponse] = []
     class Config:
         from_attributes = True
     
     
+class PostCreate(BaseModel):
+    title : str
+    content : str
+    
+
 app = FastAPI()
 
 def get_db():
@@ -102,3 +132,21 @@ def delete_all_user(db : Session = Depends(get_db)):
     db.commit()
     
     return {"message": f"Nuclear option executed. {users} users deleted."}
+
+@app.post('/Users/{user_id}/posts', response_model=PostResponse)
+def create_posts(user_id : int , posts : PostCreate , db : Session = Depends(get_db)):
+    user = db.query(DBUser).filter(DBUser.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404 ,detail="User Not Found")
+    
+    new_post = DBPost(
+        title = posts.title,
+        content = posts.content,
+        owner_id = user_id
+    )
+    
+    db.add(new_post)
+    db.commit()
+    db.refresh(new_post)
+    
+    return new_post
