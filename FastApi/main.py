@@ -11,8 +11,10 @@ class DBUser(Base):
     username = Column(String, unique=True)
     email = Column(String)
     
-    posts = relationship("DBPost" , back_populates="owner")
-
+    posts = relationship(
+        "DBPost",
+        back_populates="owner",
+    )
 class DBPost(Base):
     __tablename__ = "posts"
     
@@ -20,10 +22,13 @@ class DBPost(Base):
     title = Column(String)
     content = Column(String)
     
-    owner_id = Column(Integer , ForeignKey("users.id"))
+    owner_id = Column(Integer , ForeignKey("users.id", ondelete="CASCADE"))
     
-    owner = relationship("DBUser" , back_populates="posts")
-    
+    owner = relationship(
+        "DBUser",
+        back_populates="posts"
+    )
+
 Base.metadata.create_all(bind=engine)
 
 class UserCrate(BaseModel):
