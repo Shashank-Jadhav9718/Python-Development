@@ -24,8 +24,8 @@ def create_user(user : UserCreate , db : Session = Depends(get_db)):
     return new_user
 
 @router.get('/',response_model = list[UserResponse])
-def get_all_users(db : Session = Depends(get_db)):
-    users = db.query(DBUser).all()
+def get_all_users(db : Session = Depends(get_db), limit : int = 10, skip : int = 0):
+    users = db.query(DBUser).limit(limit).offset(skip).all()
     
     return users
 
