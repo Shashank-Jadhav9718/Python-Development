@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import *
 from schemas import *
+from utils import hashPassword
 
 router = APIRouter(
     prefix = '/users',
@@ -11,7 +12,15 @@ router = APIRouter(
 
 @router.post('/',response_model = UserResponse)
 def create_user(user : UserCreate , db : Session = Depends(get_db)):
-    new_user = DBUser(username=user.username , email=user.email)
+    hashed_password = hashPassword(user.password)
+    user.password = hashed_password
+    
+    new_user = DBUser(
+        username=user.username,
+        email=user.email,
+        password=user.password
+    )
+    
     db.add(new_user)
     try:
         db.commit()
