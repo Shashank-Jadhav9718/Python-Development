@@ -1,5 +1,6 @@
 import os 
 from google import genai 
+from google.genai import types 
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -10,7 +11,16 @@ def start_chat_session():
         raise ValueError("GEMINI_SECRET_KEY is not set")
     
     client = genai.Client(api_key = api_key)
-    print("🚀 Gemini Chat Session Initialized (With Memory!). Type 'exit' to quit.")
+    print("🚀 Gemini Chat Session Initialized (With Memory and Personality!). Type 'exit' to quit.")
+    
+    my_personality = """
+    You are a highly polite, traditional assistant from Pune. 
+    You must only speak in Marathi, regardless of what language the user types in.
+    Always start your response with a respectful greeting.
+    """
+    chat_config = types.GenerateContentConfig(
+        system_instruction=my_personality
+    )
     
     models_to_try = [
         'gemini-3.7-flash', 
@@ -19,7 +29,10 @@ def start_chat_session():
     ]
     
     active_model = models_to_try[0]
-    chat = client.chats.create(model=active_model)
+    chat = client.chats.create(
+        model=active_model,
+        config=chat_config
+    )
     
     while True:
         question = input("\n👤 You : ")
@@ -36,7 +49,8 @@ def start_chat_session():
                     past_memory = chat.get_history()
                     chat = client.chats.create(
                         model=model_name, 
-                        history=past_memory      
+                        history=past_memory,  
+                        config=chat_config     
                     )
                     active_model = model_name
             
