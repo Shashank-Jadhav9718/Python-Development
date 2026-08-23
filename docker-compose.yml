@@ -1,0 +1,20 @@
+services:
+  rag_postgres:
+    image: pgvector/pgvector:pg17
+    container_name: fastapi_practice_pgvector
+    restart: always
+    env_file:
+      - ./FastApi/.env  # Update to your actual relative path (e.g., ./FastApi/ai_chat/.env)
+    ports:
+      - "5434:5432"
+    volumes:
+      - fastapi_practice_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  fastapi_practice_data:
+    name: fastapi_practice_data
