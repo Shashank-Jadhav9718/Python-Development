@@ -38,6 +38,7 @@ def pg_vector_pipeline():
         
         documents = [
             "FastAPI is a Python framework used to create backend web servers and APIs.",
+            "To create a backend web server in Python, you can use FastAPI by installing it with 'pip install fastapi uvicorn' and defining endpoints using standard Python functions.",
             "Dogs are highly social animals and love to play.",
             "To build AI apps, you need API keys and cloud deployment."
         ]
@@ -71,6 +72,22 @@ def pg_vector_pipeline():
         
         top_match = db.execute(stmt).scalars().first()
         print(f"\n🏆 Top Database Match: '{top_match.content}'")
+        
+        print("\n🧠 AI is reading the context and generating an answer...")
+        
+        rag_prompt = f"""
+        You are a highly technical assistant. You must answer the user's question using ONLY the information provided in the Context below. 
+        If the answer is not contained in the Context, say "I do not have that information in my database.
+        
+        Context:
+        {top_match.content}
+        
+        User Question:
+        {user_question}
+        """
+        chat = client.chats.create(model="gemini-3.6-flash")
+        final_response = chat.send_message(rag_prompt)        
+        print(f"\n🤖 Final AI Answer:\n{final_response.text}")
         
     finally:
         db.close()
