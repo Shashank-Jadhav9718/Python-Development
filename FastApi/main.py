@@ -5,7 +5,10 @@ from routers import user, post, auth, ai_chat
 
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="My Organized Backend")
+app = FastAPI(
+    title="Production pgvector RAG API",
+    version="1.0.0"
+)
 
 app.include_router(auth.router)
 app.include_router(user.router)

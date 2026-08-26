@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Text
 from sqlalchemy.orm import relationship
+from pgvector.sqlalchemy import Vector
 from database import Base
 
 class DBUser(Base):
@@ -23,3 +24,10 @@ class DBPost(Base):
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
 
     owner = relationship("DBUser", back_populates="posts")
+    
+class Document(Base):
+    __tablename__ = "documents"
+    
+    id = Column(Integer, primary_key=True)
+    content = Column(Text, nullable=False)
+    embeddings = Column(Vector(3072), nullable=False)

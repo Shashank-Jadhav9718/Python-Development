@@ -18,10 +18,10 @@ class PostResponse(PostBase):
 class UserBase(BaseModel):
     username: str
     email: str
-    password : str
+    
 
 class UserCreate(UserBase):
-    pass
+    password: str
 
 class UserResponse(UserBase):
     id: int
@@ -32,3 +32,19 @@ class UserResponse(UserBase):
         
 class chatRequest(BaseModel):
     question : str
+    
+    
+class IngestRequest(BaseModel):
+    documents : List[str]
+    
+class IngestResponse(BaseModel):
+    message : str
+    inserted_count : int 
+    
+class AskRequest(BaseModel):
+    question : str
+
+class AskResponse(BaseModel):
+    question : str
+    retrieved_context : str
+    answer : str
