@@ -1,6 +1,6 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, ForeignKey, Text, Index
 from sqlalchemy.orm import relationship
-from pgvector.sqlalchemy import Vector
+from pgvector.sqlalchemy import Vector, HALFVEC
 from database import Base
 
 class DBUser(Base):
@@ -30,4 +30,14 @@ class Document(Base):
     
     id = Column(Integer, primary_key=True)
     content = Column(Text, nullable=False)
-    embeddings = Column(Vector(3072), nullable=False)
+    embeddings = Column(HALFVEC(3072), nullable=False)
+    
+    __table_args__ = (
+        Index(
+            'ix_documents_embeddings_hnsw',      
+            embeddings,                           
+            postgresql_using='hnsw',              
+            postgresql_with={'m': 16, 'ef_construction': 64}, 
+            postgresql_ops={'embeddings': 'halfvec_cosine_ops'} 
+        ),
+    )
