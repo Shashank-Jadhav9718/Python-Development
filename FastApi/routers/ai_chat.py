@@ -1,8 +1,9 @@
 import os
+from typing import List
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel
 from google import genai
-from schemas import chatRequest, IngestRequest, IngestResponse, AskRequest, AskResponse
+from schemas import chatRequest, IngestLongDocRequest, IngestResponse, AskRequest, AskResponse
 from models import Document
 from database import get_db
 from sqlalchemy.orm import Session
@@ -16,29 +17,52 @@ if not api_key:
 client = genai.Client(api_key=api_key)
 print("🚀 Gemini Chat Session Initialized (With Memory and Personality!). Type 'exit' to quit.")
 
-@router.post("/document/ingest", response_model=IngestResponse, status_code=status.HTTP_201_CREATED)
-def ingest_document(payload : IngestRequest, db : Session = Depends(get_db)):
-    if not payload.documents:
-        raise HTTPException(status_code=404, detail="Document list cannot be empty.")
+def chunk_text(text : str, chunk_size : int = 500, overlap : int = 100) -> List[str]:
+    if len(text) <= chunk_size:
+        return [text]
     
+    chunks = []
+    start = 0 
+    step = chunk_size - overlap
+    while start < len(text):
+        end = start + chunk_size
+        chunks.append(text[start:end].strip())
+        start += step
+        
+    return chunks 
+
+@router.post("/document/ingest-long", response_model = IngestResponse)
+def ingest_long_document(payload : IngestLongDocRequest, db : Session = Depends(get_db)):
+    if not payload.text.strip():
+        raise HTTPException(status_code=400, detail="Text content cannot be empty.")
+    
+    raw_chunks = chunk_text(payload.text, payload.chunk_size, payload.overlap)
     inserted = 0
     
-    for doc in payload.documents:
+    for chunk in raw_chunks:
         result = client.models.embed_content(
             model="gemini-embedding-2",
-            contents=doc
+            contents=chunk
         )
         embeddings = result.embeddings[0].values
         
-        db_doc = Document(content=doc, embeddings=embeddings)
+        db_doc = Document(
+            content = chunk,
+            embeddings = embeddings
+        )
         db.add(db_doc)
         inserted += 1
-    
+        
     db.commit()
-    return IngestResponse(message="Documents stored.", inserted_count=inserted)
+    
+    return IngestResponse(
+        message=f"Successfully sliced text into {inserted} overlapping chunks and indexed in pgvector.",
+        inserted_count= inserted
+    )
+        
 
 @router.post('/rag/ask', response_model=AskResponse)
-def ask_question(payload : AskRequest , db : Session = Depends(get_db)):
+def ask_question(payload: AskRequest, db: Session = Depends(get_db)):
     query_result = client.models.embed_content(
         model="gemini-embedding-2",
         contents=payload.question
@@ -47,18 +71,21 @@ def ask_question(payload : AskRequest , db : Session = Depends(get_db)):
     
     stmt = select(Document).order_by(
         Document.embeddings.cosine_distance(query_embeddings)
-    ).limit(1)
+    ).limit(payload.top_k)
     
-    top_response = db.execute(stmt).scalars().first()
-    if not top_response:
-        raise HTTPException(status_code=404, detail="Database empty.")
+    results = db.execute(stmt).scalars().all() 
+    if not results:
+        raise HTTPException(status_code=404, detail="Database contains no document embeddings.")
+    
+    retrieved_contexts = [doc.content for doc in results]
+    combined_context = "\n\n---\n\n".join(retrieved_contexts)
     
     rag_prompt = f"""
-    You are a technical assistant. Answer the question using ONLY the provided Context.
-    If the context does not contain enough information, respond exactly: "I do not have that information in my database."
+    You are a technical assistant. Answer the question using ONLY the provided Context sections below.
+    If the answer is not clearly present in the context, say "I do not have that information in my database."
 
-    Context:
-    {top_response.content}
+    Context Sections:
+    {combined_context}
 
     User Question:
     {payload.question}
@@ -69,7 +96,7 @@ def ask_question(payload : AskRequest , db : Session = Depends(get_db)):
     
     return AskResponse(
         question=payload.question,
-        retrieved_context=top_response.content,
+        retrieved_context=retrieved_contexts,
         answer=ai_response.text.strip()
     )
     

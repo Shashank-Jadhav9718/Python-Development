@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 class PostBase(BaseModel):
     title: str
@@ -34,8 +34,11 @@ class chatRequest(BaseModel):
     question : str
     
     
-class IngestRequest(BaseModel):
-    documents : List[str]
+class IngestLongDocRequest(BaseModel):
+    source_name : Optional[str] = "manual_entry"
+    text : str
+    chunk_size : Optional[int] = 500
+    overlap : Optional[int] = 100
     
 class IngestResponse(BaseModel):
     message : str
@@ -43,8 +46,9 @@ class IngestResponse(BaseModel):
     
 class AskRequest(BaseModel):
     question : str
+    top_k : Optional[int] = 3 
 
 class AskResponse(BaseModel):
     question : str
-    retrieved_context : str
-    answer : str
+    retrieved_context : list[str]
+    answer : str    
