@@ -1,6 +1,8 @@
 import os
+import json
 from typing import List
 from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from google import genai
 from schemas import chatRequest, IngestLongDocRequest, IngestResponse, AskRequest, AskResponse
@@ -61,7 +63,7 @@ def ingest_long_document(payload : IngestLongDocRequest, db : Session = Depends(
     )
         
 
-@router.post('/rag/ask', response_model=AskResponse)
+@router.post('/rag/ask')
 def ask_question(payload: AskRequest, db: Session = Depends(get_db)):
     query_result = client.models.embed_content(
         model="gemini-embedding-2",
@@ -90,13 +92,21 @@ def ask_question(payload: AskRequest, db: Session = Depends(get_db)):
     User Question:
     {payload.question}
     """
+    def generate_stream():
+        chat = client.chats.create(model="gemini-3.6-flash")
+        response_stream = chat.send_message(rag_prompt)
+        
+        initial_payload = {
+            "Question" : payload.question,
+            "Retrieved_context" : retrieved_contexts,
+            "Status" : "Context Loaded"
+        }
+        yield json.dumps(initial_payload) + '\n'
+        
+        for chunk in response_stream:
+            if chunk.text:
+                chunk_payload = {"Answer Chunk" : chunk.text}
+                yield json.dumps(chunk_payload) + '\n'
     
-    chat = client.chats.create(model="gemini-3.6-flash")
-    ai_response = chat.send_message(rag_prompt)
-    
-    return AskResponse(
-        question=payload.question,
-        retrieved_context=retrieved_contexts,
-        answer=ai_response.text.strip()
-    )
+    return StreamingResponse(generate_stream(), media_type="application/x-ndjson")
     
