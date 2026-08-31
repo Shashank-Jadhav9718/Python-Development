@@ -63,7 +63,7 @@ def ingest_long_document(payload : IngestLongDocRequest, db : Session = Depends(
     )
         
 
-@router.post('/rag/ask')
+@router.post('/rag/ask-stream')
 def ask_question(payload: AskRequest, db: Session = Depends(get_db)):
     query_result = client.models.embed_content(
         model="gemini-embedding-2",
@@ -94,7 +94,7 @@ def ask_question(payload: AskRequest, db: Session = Depends(get_db)):
     """
     def generate_stream():
         chat = client.chats.create(model="gemini-3.6-flash")
-        response_stream = chat.send_message(rag_prompt)
+        response_stream = chat.send_message_stream(rag_prompt)
         
         initial_payload = {
             "Question" : payload.question,
