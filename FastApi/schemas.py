@@ -45,6 +45,7 @@ class IngestResponse(BaseModel):
     inserted_count : int 
     
 class AskRequest(BaseModel):
+    session_id : str
     question : str
     top_k : Optional[int] = 3 
 

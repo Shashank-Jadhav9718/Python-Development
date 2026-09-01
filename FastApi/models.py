@@ -45,8 +45,8 @@ class Document(Base):
 class Chat_History(Base):
     __tablename__ = "chat_history"
     
-    id = Column(Integer, primary_key=True, Index=True)
-    session_id = Column(String, Index=True, nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String, index=True, nullable=False)
     role = Column(String, nullable=False)
     content = Column(Text, nullable=False)
     

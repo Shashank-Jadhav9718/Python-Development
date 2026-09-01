@@ -5,8 +5,9 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from google import genai
+from google.genai import types
 from schemas import chatRequest, IngestLongDocRequest, IngestResponse, AskRequest, AskResponse
-from models import Document
+from models import Document, Chat_History
 from database import get_db
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -65,6 +66,25 @@ def ingest_long_document(payload : IngestLongDocRequest, db : Session = Depends(
 
 @router.post('/rag/ask-stream')
 def ask_question(payload: AskRequest, db: Session = Depends(get_db)):
+    
+    user_message = Chat_History(session_id=payload.session_id, role="user", content=payload.question)
+    db.add(user_message)
+    db.commit()
+    
+    past_messages = db.query(Chat_History).filter(
+        Chat_History.session_id == payload.session_id
+    ).order_by(Chat_History.id).all()
+    
+    formatted_history = []
+    for msg in past_messages[:-1]:
+        safe_role = "model" if msg.role == "assistant" else msg.role
+        formatted_history.append(
+            types.Content(
+                role=safe_role,
+                parts=[types.Part.from_text(text=msg.content)]
+            )
+        )
+    
     query_result = client.models.embed_content(
         model="gemini-embedding-2",
         contents=payload.question
@@ -83,30 +103,40 @@ def ask_question(payload: AskRequest, db: Session = Depends(get_db)):
     combined_context = "\n\n---\n\n".join(retrieved_contexts)
     
     rag_prompt = f"""
-    You are a technical assistant. Answer the question using ONLY the provided Context sections below.
-    If the answer is not clearly present in the context, say "I do not have that information in my database."
-
+    You are a technical assistant. Answer the user's latest question using ONLY the provided Context sections.
     Context Sections:
     {combined_context}
-
-    User Question:
+    
+    Latest User Question:
     {payload.question}
     """
+    
     def generate_stream():
-        chat = client.chats.create(model="gemini-3.6-flash")
-        response_stream = chat.send_message_stream(rag_prompt)
+        chat = client.chats.create(
+            model="gemini-3.6-flash",
+            history=formatted_history,
+            config={"system_instruction": rag_prompt}
+        )
+        response_stream = chat.send_message_stream(message=payload.question)
         
         initial_payload = {
-            "Question" : payload.question,
-            "Retrieved_context" : retrieved_contexts,
-            "Status" : "Context Loaded"
+            "Session ID": payload.session_id,
+            "Question": payload.question,
+            "Status": "Context Loaded"
         }
         yield json.dumps(initial_payload) + '\n'
         
+        full_ai_response = ""
+        
         for chunk in response_stream:
             if chunk.text:
+                full_ai_response += chunk.text
                 chunk_payload = {"Answer Chunk" : chunk.text}
                 yield json.dumps(chunk_payload) + '\n'
-    
+        
+        ai_message = Chat_History(session_id=payload.session_id, role="assistant", content=full_ai_response)
+        db.add(ai_message)
+        db.commit()
+        
     return StreamingResponse(generate_stream(), media_type="application/x-ndjson")
     
