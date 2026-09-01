@@ -41,3 +41,13 @@ class Document(Base):
             postgresql_ops={'embeddings': 'halfvec_cosine_ops'} 
         ),
     )
+    
+class Chat_History(Base):
+    __tablename__ = "chat_history"
+    
+    id = Column(Integer, primary_key=True, Index=True)
+    session_id = Column(String, Index=True, nullable=False)
+    role = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    
+    
