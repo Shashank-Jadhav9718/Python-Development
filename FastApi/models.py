@@ -29,6 +29,7 @@ class Document(Base):
     __tablename__ = "documents"
     
     id = Column(Integer, primary_key=True)
+    source_name = Column(String, nullable=True)
     content = Column(Text, nullable=False)
     embeddings = Column(HALFVEC(3072), nullable=False)
     
