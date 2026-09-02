@@ -1,7 +1,8 @@
 import os
+import io
 import json
 from typing import List
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File 
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from google import genai
@@ -11,6 +12,7 @@ from models import Document, Chat_History
 from database import get_db
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from pypdf import PdfReader
 
 router = APIRouter(prefix="/ai_chat", tags=["AI Chat"])
 
@@ -63,6 +65,50 @@ def ingest_long_document(payload : IngestLongDocRequest, db : Session = Depends(
         inserted_count= inserted
     )
         
+@router.post('/document/upload', response_model=IngestResponse)
+async def upload_and_ingest_file(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    file_bytes = await file.read()
+    extracted_text = ""
+    
+    if file.filename.endswith('.txt'):
+        extracted_text += file_bytes.decode('utf-8')
+    elif file.filename.endswith('.pdf'):
+        try:
+            pdf_reader = PdfReader(io.BytesIO(file_bytes))
+            for page in pdf_reader.pages:
+                extracted_text += page.extract_text() + "\n"
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Error reading PDF: {str(e)}")  
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported file type. Only .txt and .pdf are allowed.")
+    
+    if not extracted_text.strip():
+        raise HTTPException(status_code=400, detail="Extracted text is empty. Please check the file content.")
+    
+    raw_chunks = chunk_text(extracted_text, chunk_size=500, overlap=100)
+    inserted = 0 
+    
+    for chunk in raw_chunks:
+        result = client.models.embed_content(
+            model="gemini-embedding-2",
+            contents=chunk
+        )
+        embeddings = result.embeddings[0].values
+        
+        db_doc = Document(
+            source_name=file.filename,
+            content=chunk,
+            embeddings=embeddings
+        )
+        db.add(db_doc)
+        inserted += 1
+        
+    db.commit()
+    
+    return IngestResponse(
+        message=f"Successfully sliced text into {inserted} overlapping chunks and indexed in pgvector.",
+        inserted_count=inserted   
+    )
 
 @router.post('/rag/ask-stream')
 def ask_question(payload: AskRequest, db: Session = Depends(get_db)):
