@@ -1,20 +1,38 @@
+version: '3.8'
+
 services:
-  rag_postgres:
-    image: pgvector/pgvector:pg17
-    container_name: fastapi_practice_pgvector
-    restart: always
-    env_file:
-      - ./FastApi/.env  # Update to your actual relative path (e.g., ./FastApi/ai_chat/.env)
-    ports:
-      - "5434:5432"
+  db:
+    image: ankane/pgvector:latest
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=FastApi_practice
     volumes:
-      - fastapi_practice_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  api:
+    build: .
+    # 🔑 Tell Uvicorn to look inside the FastApi folder for main.py
+    command: uvicorn FastApi.main:app --host 0.0.0.0 --port 8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+  frontend:
+    build: .
+    # 🔑 Tell Streamlit to run the app.py file located inside the FastApi folder
+    command: streamlit run FastApi/app.py --server.port 8501 --server.address 0.0.0.0
+    volumes:
+      - .:/app
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
 
 volumes:
-  fastapi_practice_data:
-    name: fastapi_practice_data
+  postgres_data:
